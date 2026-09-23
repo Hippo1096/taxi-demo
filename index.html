@@ -1,0 +1,401 @@
+<!DOCTYPE html>
+<!-- AI-Provenance:
+     generator: Kimi-Claw [0D63EBB1]
+     date: 2026-09-23
+     task: 092301-出租车计费演示 v2（人教版五上例9原型：分段计费 + 进一法）
+     style-ref: Desmos 图表简洁度 + 日式教科书图解 clarity；暖纸底色、无渐变 -->
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>出租车计费演示 · 分段计费（进一法）</title>
+<style>
+  :root{
+    --ink:#2B2622; --paper:#FBF7EF; --card:#FFFFFF; --line:#E8E0D0;
+    --amber:#F2A33C; --amber-deep:#C77F1B;
+    --teal:#2E9E8F;  --teal-deep:#1F7A6E;
+    --car:#E4573D; --road:#4A4440; --gray:#8A8073;
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  body{
+    font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif;
+    background:var(--paper); color:var(--ink);
+    display:flex; justify-content:center; padding:24px 14px 60px;
+    font-variant-numeric:tabular-nums;
+  }
+  .wrap{width:min(920px,100%);}
+  header{display:flex; flex-wrap:wrap; align-items:baseline; gap:10px 16px; margin-bottom:14px;}
+  h1{font-size:26px; letter-spacing:1px;}
+  .rule{font-size:14px; background:var(--ink); color:#FFF; padding:4px 12px; border-radius:999px;}
+  .rule b{color:var(--amber);}
+  .hint{font-size:13px; color:var(--gray); width:100%;}
+
+  .card{
+    background:var(--card); border:1px solid var(--line); border-radius:14px;
+    box-shadow:0 2px 0 rgba(43,38,34,.05); padding:16px; margin-bottom:16px;
+  }
+  .card h2{font-size:15px; margin-bottom:10px; color:#6B6154; font-weight:600; letter-spacing:2px;}
+
+  .stage{position:relative;}
+  svg{display:block; width:100%; height:auto;}
+  .toast{
+    position:absolute; left:50%; top:14px; transform:translateX(-50%);
+    background:var(--teal-deep); color:#fff; font-size:14px;
+    padding:8px 16px; border-radius:999px; opacity:0; transition:opacity .35s;
+    pointer-events:none; white-space:nowrap;
+  }
+  .toast.show{opacity:1;}
+
+  .controls{display:flex; flex-wrap:wrap; align-items:center; gap:14px; margin-top:4px;}
+  input[type=range]{flex:1 1 240px; accent-color:var(--car); height:32px; cursor:pointer;}
+  .numwrap{display:flex; align-items:center; gap:6px; font-size:14px;}
+  input[type=number]{
+    width:84px; font-size:16px; padding:6px 8px; border:1.5px solid var(--line);
+    border-radius:8px; font-variant-numeric:tabular-nums;
+  }
+  input[type=number]:focus{outline:2px solid var(--amber);}
+  button{
+    font-size:14px; padding:8px 18px; border:none; border-radius:999px;
+    cursor:pointer; background:var(--car); color:#fff; letter-spacing:1px;
+  }
+  button.ghost{background:#F1EAD9; color:var(--ink);}
+  button:active{transform:translateY(1px);}
+
+  .fare{display:flex; gap:20px; flex-wrap:wrap; align-items:stretch;}
+  .total{min-width:180px; display:flex; flex-direction:column; justify-content:center; align-items:center;
+         background:var(--paper); border-radius:12px; padding:14px 22px;}
+  .total .yen{font-size:14px; color:var(--gray);}
+  .total .val{font-size:44px; font-weight:700; color:var(--car); line-height:1.1;}
+  .total .val small{font-size:20px; font-weight:600;}
+  .rows{flex:1; display:flex; flex-direction:column; justify-content:center; gap:8px; font-size:15px;}
+  .row{display:flex; align-items:center; gap:8px;}
+  .chip{width:12px; height:12px; border-radius:3px; flex:none;}
+  .chip.a{background:var(--amber);} .chip.t{background:var(--teal);} .chip.g{background:#B4AA99;}
+  .row .amt{margin-left:auto; font-weight:600;}
+  .row .note{font-size:12.5px; color:var(--gray);}
+  .formula{
+    margin-top:10px; padding:10px 12px; background:#F6F1E4; border-radius:10px;
+    font-size:16px; text-align:center; letter-spacing:.5px; min-height:44px;
+    display:flex; align-items:center; justify-content:center; flex-wrap:wrap; gap:4px;
+  }
+  .formula b{color:var(--car);}
+  .formula em{font-style:normal; color:var(--teal-deep); font-weight:600;}
+
+  .tip{font-size:13px; color:var(--gray); margin-top:8px; text-align:center;}
+  footer{margin-top:18px; text-align:center; font-size:12px; color:#B4AA99;}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <h1>🚕 出租车计费演示</h1>
+    <span class="rule">前 <b>3 千米</b> 收 <b>8 元</b> · 超出每千米 <b>1.5 元</b> · 不足 1 千米按 1 千米算</span>
+    <span class="hint">先找「实际里程」→ 再用进一法得「计费里程」→ 最后算钱。三种方式改变里程：滑块 / 数字 / 点图像。</span>
+  </header>
+
+  <!-- 场景 -->
+  <div class="card stage">
+    <h2>行 驶 路 线</h2>
+    <div class="toast" id="toast">⚑ 超过 3 千米，超出部分每千米 +1.5 元</div>
+    <svg id="scene" viewBox="0 0 900 250" role="img" aria-label="出租车行驶路线图">
+      <!-- 起步价区域底色 -->
+      <rect x="40" y="70" width="123" height="140" fill="#F2A33C" opacity="0.16"/>
+      <rect id="zoneExtra" x="163" y="70" width="0" height="140" fill="#2E9E8F" opacity="0.12"/>
+      <!-- 3千米界旗 -->
+      <line x1="163" y1="70" x2="163" y2="210" stroke="#C77F1B" stroke-width="2" stroke-dasharray="6 5"/>
+      <g font-size="13" fill="#C77F1B" font-weight="600">
+        <rect x="97" y="44" width="132" height="22" rx="11" fill="#FFF" stroke="#C77F1B"/>
+        <text x="163" y="60" text-anchor="middle">第 1–3 段 · 起步价 8 元</text>
+      </g>
+      <!-- 超出区提示牌 -->
+      <g font-size="13" fill="#1F7A6E" font-weight="600">
+        <rect x="330" y="44" width="150" height="22" rx="11" fill="#FFF" stroke="#2E9E8F"/>
+        <text x="405" y="60" text-anchor="middle">第 4 段起 · 每段 1.5 元</text>
+        <line x1="405" y1="66" x2="405" y2="98" stroke="#2E9E8F" stroke-width="1.5" stroke-dasharray="4 4"/>
+      </g>
+      <!-- 道路 -->
+      <rect x="40" y="190" width="820" height="46" fill="#4A4440" rx="6"/>
+      <rect id="slabHL" x="0" y="190" width="0" height="46" fill="#F2A33C" opacity="0.35" visibility="hidden"/>
+      <g id="seps"></g>
+      <line x1="50" y1="213" x2="850" y2="213" stroke="#FFF" stroke-width="3" stroke-dasharray="18 14" opacity="0.75"/>
+      <g id="slabTags"></g>
+      <g id="ticks"></g>
+      <!-- 计费里程标尺（进一法） -->
+      <g id="pin" visibility="hidden">
+        <line id="pinLine" x1="0" y1="138" x2="0" y2="210" stroke="#1F7A6E" stroke-width="2" stroke-dasharray="4 4"/>
+        <rect id="pinBox" x="0" y="112" width="104" height="24" rx="12" fill="#1F7A6E"/>
+        <text id="pinText" x="0" y="128" text-anchor="middle" font-size="13" fill="#FFF" font-weight="600">按 4 km 计费</text>
+      </g>
+      <!-- 小汽车 -->
+      <g id="car">
+        <rect x="-34" y="-6" width="14" height="10" rx="3" fill="#F2C53C"/>
+        <path d="M-26,0 L-26,-16 Q-26,-20 -20,-20 L8,-20 Q14,-20 18,-14 L24,-6 Q30,-4 30,2 L30,6 Q30,10 26,10 L-22,10 Q-26,10 -26,6 Z" fill="#E4573D"/>
+        <path d="M-16,-18 L6,-18 Q11,-18 14,-13 L17,-8 L-16,-8 Z" fill="#BFE3EE"/>
+        <circle cx="-14" cy="10" r="7" fill="#2B2622"/><circle cx="-14" cy="10" r="3" fill="#B4AA99"/>
+        <circle cx="16" cy="10" r="7" fill="#2B2622"/><circle cx="16" cy="10" r="3" fill="#B4AA99"/>
+        <g id="bubbleG">
+          <rect x="-66" y="-62" width="132" height="34" rx="17" fill="#2B2622"/>
+          <text x="0" y="-39" text-anchor="middle">
+            <tspan id="fareText" font-size="17" fill="#FFD37A" font-weight="700">¥8</tspan><tspan dx="7" font-size="12" fill="#C9C0B0">·</tspan><tspan id="kmText" dx="7" font-size="12" fill="#C9C0B0">0 km</tspan>
+          </text>
+        </g>
+      </g>
+    </svg>
+    <div class="controls">
+      <input type="range" id="slider" min="0" max="20" step="0.1" value="0" aria-label="行驶里程">
+      <div class="numwrap">
+        <input type="number" id="num" min="0" max="20" step="0.1" value="0" aria-label="里程数值">
+        <span>千米</span>
+      </div>
+      <button id="play">▶ 自动行驶</button>
+      <button class="ghost" id="reset">↺ 归零</button>
+    </div>
+  </div>
+
+  <!-- 车费 -->
+  <div class="card">
+    <h2>车 费 明 细（三层对应）</h2>
+    <div class="fare">
+      <div class="total">
+        <span class="yen">合计车费</span>
+        <span class="val"><small>¥</small> <span id="totalVal">8</span></span>
+      </div>
+      <div class="rows">
+        <div class="row">
+          <span class="chip g"></span>
+          <span>实际里程</span>
+          <span class="amt" id="actualVal">0 千米</span>
+        </div>
+        <div class="row">
+          <span class="chip g"></span>
+          <span>计费里程 <span class="note">（进一法：不足 1 千米按 1 千米）</span></span>
+          <span class="amt" id="billedVal">0 千米</span>
+        </div>
+        <div class="row">
+          <span class="chip a"></span>
+          <span>起步价（3 千米以内）</span>
+          <span class="amt" id="baseVal">8.00 元</span>
+        </div>
+        <div class="row">
+          <span class="chip t"></span>
+          <span id="extraLabel">超出部分（0 千米 × 1.5 元）</span>
+          <span class="amt" id="extraVal">0.00 元</span>
+        </div>
+      </div>
+    </div>
+    <div class="formula" id="formula">还没出发：起步价 <b>8 元</b> 待命</div>
+    <p class="tip">想一想：6.1 千米 和 6.9 千米，车费为什么一样？</p>
+  </div>
+
+  <!-- 图像 -->
+  <div class="card">
+    <h2>车 费 图 像 · 阶梯图（点击可定位）</h2>
+    <svg id="graph" viewBox="0 0 900 300" role="img" aria-label="车费与里程关系阶梯图">
+      <g id="grid"></g>
+      <line x1="50" y1="250" x2="880" y2="250" stroke="#2B2622" stroke-width="2"/>
+      <line x1="50" y1="250" x2="50" y2="16" stroke="#2B2622" stroke-width="2"/>
+      <path d="M880,250 l-10,-5 v10 Z" fill="#2B2622"/>
+      <path d="M50,16 l-5,10 h10 Z" fill="#2B2622"/>
+      <text x="872" y="272" text-anchor="end" font-size="13" fill="#6B6154">实际千米 →</text>
+      <text x="36" y="26" text-anchor="middle" font-size="13" fill="#6B6154" transform="rotate(-90 36 26)">元 ↑</text>
+      <g id="highlight"></g>
+      <g id="stairs"></g>
+      <g id="marker"></g>
+      <rect id="hit" x="50" y="16" width="830" height="234" fill="transparent" cursor="crosshair"/>
+    </svg>
+    <p class="tip">每一级"台阶"对应一个计费里程：车在台阶上走，钱在整数处跳。</p>
+  </div>
+
+  <footer>Kimi-Claw · 人教版五上「分段计费+进一法」小课件 · 数据留在本机/本服，无外部请求</footer>
+</div>
+
+<script>
+(function(){
+  "use strict";
+  const MAX_KM=20, BASE_KM=3, BASE_FARE=8, PER_KM=1.5, MAX_FARE=35;
+  const $ = id => document.getElementById(id);
+
+  /* 场景坐标：viewBox 900×250，道路 x40 w820 → 41px/km */
+  const SX=40, SW=820;
+  const sx = km => SX + km/MAX_KM*SW;
+
+  /* 图像坐标 */
+  const GX0=50, GY0=250, GW=830, GH=234;
+  const gx = km => GX0 + km/MAX_KM*GW;
+  const gy = f => GY0 - f/MAX_FARE*GH;
+
+  /* 核心：进一法 → 分段计费 */
+  const billedOf = km => km <= 0 ? 0 : Math.max(1, Math.ceil(km - 1e-9));
+  const fareOf = km => {
+    const b = billedOf(km);
+    return b <= BASE_KM ? BASE_FARE : BASE_FARE + (b-BASE_KM)*PER_KM;
+  };
+  const money = v => (Math.round(v*100)/100).toFixed(2);
+  const trim = v => (Math.round(v*100)/100).toFixed(2).replace(/\.?0+$/,"");
+
+  /* 道路刻度 */
+  let t = $("ticks"), html = "";
+  for(let k=0;k<=MAX_KM;k++){
+    const x = sx(k);
+    html += `<line x1="${x}" y1="190" x2="${x}" y2="202" stroke="#FFF" stroke-width="1.5" opacity="0.85"/>
+             <text x="${x}" y="228" text-anchor="middle" font-size="11" fill="#FFF">${k}</text>`;
+  }
+  html += `<text x="${SX+SW+6}" y="228" font-size="12" fill="#8A8073">千米</text>`;
+  t.innerHTML = html;
+
+  /* 分段：每千米一道分隔线 + 段号牌（1–3 起步区琥珀，其余青色） */
+  let sh = "", sj = "";
+  for(let k=1;k<MAX_KM;k++)
+    sh += `<line x1="${sx(k)}" y1="192" x2="${sx(k)}" y2="234" stroke="#FFF" stroke-width="1.5" opacity="0.28"/>`;
+  for(let k=1;k<=MAX_KM;k++){
+    const c = k <= BASE_KM ? "#C77F1B" : "#5FA8A0", x = sx(k-0.5);
+    sj += `<rect x="${x-11}" y="163" width="22" height="16" rx="5" fill="#FFF" stroke="${c}" stroke-width="1"/>
+           <text x="${x}" y="175" text-anchor="middle" font-size="10.5" fill="${c}" font-weight="600">${k}</text>`;
+  }
+  $("seps").innerHTML = sh;
+  $("slabTags").innerHTML = sj;
+
+  /* 网格 */
+  let g = $("grid"), gh = "";
+  for(let f=0;f<=MAX_FARE;f+=5)
+    gh += `<line x1="${GX0}" y1="${gy(f)}" x2="${GX0+GW}" y2="${gy(f)}" stroke="#EFE8D8" stroke-width="1"/>
+           <text x="${GX0-8}" y="${gy(f)+4}" text-anchor="end" font-size="11" fill="#B4AA99">${f}</text>`;
+  for(let k=0;k<=MAX_KM;k+=5)
+    gh += `<line x1="${gx(k)}" y1="${GY0}" x2="${gx(k)}" y2="16" stroke="#EFE8D8" stroke-width="1"/>
+           <text x="${gx(k)}" y="268" text-anchor="middle" font-size="11" fill="#B4AA99">${k}</text>`;
+  g.innerHTML = gh;
+
+  /* 阶梯：n=1..3 平台 8 元；n=4..20 平台 8+(n-3)×1.5，占区间 (n-1, n] */
+  let stairs = `<path d="M ${gx(0)},${gy(BASE_FARE)} H ${gx(BASE_KM)}`;
+  for(let n=BASE_KM+1;n<=MAX_KM;n++) stairs += ` V ${gy(BASE_FARE+(n-BASE_KM)*PER_KM)} H ${gx(n)}`;
+  stairs += `" fill="none" stroke="#2B2622" stroke-width="2.5" stroke-linejoin="round"/>`;
+  for(let n=1;n<=MAX_KM;n++){
+    const f = fareOf(n), x = gx(n);
+    stairs += `<circle cx="${x}" cy="${gy(f)}" r="3.2" fill="#2B2622" stroke="#FFF" stroke-width="1.2"/>`;
+    if(n > BASE_KM)
+      stairs += `<circle cx="${gx(n-1)}" cy="${gy(f)}" r="3" fill="#FBF7EF" stroke="#2B2622" stroke-width="1.5"/>`;
+  }
+  $("stairs").innerHTML = stairs;
+
+  let km = 0, playing = false, timer = null, wasUnder = true;
+
+  function render(){
+    const b = billedOf(km), f = fareOf(km);
+    const extra = Math.max(0, b - BASE_KM);
+
+    /* 场景 */
+    $("car").setAttribute("transform", `translate(${sx(km)},180)`);
+    $("fareText").textContent = "¥" + trim(f);
+    $("kmText").textContent = trim(km) + " km";
+    $("bubbleG").setAttribute("transform", `translate(${Math.min(0, 826-sx(km))},0)`);
+    $("zoneExtra").setAttribute("width", Math.max(0, sx(km)-sx(BASE_KM)));
+    const shl = $("slabHL");
+    if(b > 0){
+      shl.setAttribute("visibility","visible");
+      shl.setAttribute("x", sx(b-1));
+      shl.setAttribute("width", sx(b)-sx(b-1));
+      shl.setAttribute("fill", b <= BASE_KM ? "#F2A33C" : "#2E9E8F");
+    } else shl.setAttribute("visibility","hidden");
+    const pin = $("pin");
+    if(b > 0){
+      pin.setAttribute("visibility","visible");
+      const px = sx(b), anchorEnd = b > 17;
+      $("pinLine").setAttribute("x1", px); $("pinLine").setAttribute("x2", px);
+      $("pinBox").setAttribute("x", anchorEnd ? px-104 : px);
+      $("pinBox").setAttribute("fill", b <= BASE_KM ? "#C77F1B" : "#1F7A6E");
+      $("pinText").setAttribute("x", anchorEnd ? px-52 : px+52);
+      $("pinText").setAttribute("text-anchor","middle");
+      $("pinText").textContent = `按 ${b} km 计费`;
+    } else pin.setAttribute("visibility","hidden");
+
+    /* 车费三层对应 */
+    $("totalVal").textContent = trim(f);
+    $("actualVal").textContent = trim(km) + " 千米";
+    $("billedVal").textContent = b + " 千米";
+    $("baseVal").textContent = money(Math.min(BASE_FARE, f)) + " 元";
+    $("extraLabel").textContent = `超出部分（${extra} 千米 × ${PER_KM} 元）`;
+    $("extraVal").textContent = money(extra*PER_KM) + " 元";
+
+    if(km <= 0)
+      $("formula").innerHTML = `还没出发：起步价 <b>8 元</b> 待命`;
+    else if(b <= BASE_KM)
+      $("formula").innerHTML = `${trim(km)} 千米 → 进一法按 <em>${b}</em> 千米计，3 千米以内只收起步价：<b>8 元</b>`;
+    else
+      $("formula").innerHTML =
+        `${trim(km)} 千米 → 按 <em>${b}</em> 千米计：<b>8</b> + (${b} − 3) × <em>1.5</em> = <b>${trim(f)}</b>（元）`;
+
+    /* 图像：高亮当前台阶 + 对应点 */
+    let hl = "";
+    if(b > 0){
+      const inBase = b <= BASE_KM;
+      hl += `<rect x="${gx(b-1)}" y="${gy(f)}" width="${gx(b)-gx(b-1)}" height="${GY0-gy(f)}"
+              fill="${inBase ? "#F2A33C" : "#2E9E8F"}" opacity="0.3"/>`;
+    }
+    $("highlight").innerHTML = hl;
+
+    let mk = "";
+    if(km > 0){
+      mk += `<line x1="${gx(km)}" y1="${gy(f)}" x2="${gx(km)}" y2="${GY0}" stroke="#E4573D" stroke-width="1.5" stroke-dasharray="5 4"/>
+             <circle cx="${gx(b)}" cy="${gy(f)}" r="8" fill="#E4573D" opacity="0.25"/>
+             <circle cx="${gx(b)}" cy="${gy(f)}" r="5" fill="#E4573D" stroke="#FFF" stroke-width="2"/>
+             <text x="${Math.min(gx(b), gx(MAX_KM)-8)}" y="${gy(f)-14}" text-anchor="${b>17?"end":"middle"}"
+               font-size="13" font-weight="600" fill="#E4573D">实际 ${trim(km)} → 计费 ${b} km → ${trim(f)} 元</text>`;
+    }
+    $("marker").innerHTML = mk;
+
+    /* 控件同步 */
+    $("slider").value = km;
+    $("num").value = trim(km);
+  }
+
+  function setKm(v){
+    km = Math.min(MAX_KM, Math.max(0, Math.round(v*10)/10));
+    render();
+  }
+
+  $("slider").addEventListener("input", e => { stop(); setKm(parseFloat(e.target.value)); });
+  $("num").addEventListener("change", e => { stop(); setKm(parseFloat(e.target.value)||0); });
+
+  const svg = $("graph");
+  svg.addEventListener("pointerdown", e => {
+    const pt = svgPoint(e);
+    if(pt.x < GX0 || pt.x > GX0+GW) return;
+    stop(); setKm((pt.x-GX0)/GW*MAX_KM);
+  });
+  function svgPoint(e){
+    const p = svg.createSVGPoint(); p.x=e.clientX; p.y=e.clientY;
+    return p.matrixTransform(svg.getScreenCTM().inverse());
+  }
+
+  function play(){
+    if(playing) return;
+    if(km >= MAX_KM) setKm(0);
+    playing = true; wasUnder = km < BASE_KM;
+    $("play").textContent = "⏸ 暂停";
+    let last = performance.now();
+    timer = setInterval(() => {
+      const now = performance.now(), dt = (now-last)/1000; last = now;
+      setKm(km + dt*2);                 // 2 千米/秒
+      if(wasUnder && km >= BASE_KM){
+        wasUnder = false;
+        const toast = $("toast");
+        toast.classList.add("show");
+        setTimeout(()=>toast.classList.remove("show"), 2200);
+      }
+      if(km >= MAX_KM) stop();
+    }, 50);
+  }
+  function stop(){
+    if(!playing) return;
+    playing = false; clearInterval(timer);
+    $("play").textContent = "▶ 自动行驶";
+  }
+  $("play").addEventListener("click", () => playing ? stop() : play());
+  $("reset").addEventListener("click", () => { stop(); setKm(0); });
+
+  render();
+})();
+</script>
+</body>
+</html>
